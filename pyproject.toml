@@ -9,7 +9,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 line-py = {git = "https://github.com/seriaati/line.py"}
-tortoise-orm = "^0.20.0"
+tortoise-orm = {extras = ["asyncpg"], version = "^0.20.0"}
 shioaji = {extras = ["speed"], version = "^1.1.13"}
 stock-crawl = {git = "https://github.com/seriaati/stock_crawl"}
 
