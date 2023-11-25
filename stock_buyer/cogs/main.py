@@ -15,6 +15,30 @@ ACTION_NAMES: Dict[Literal["Buy", "Sell"], str] = {
     "Buy": "買",
     "Sell": "賣",
 }
+ORDER_LOT_NAMES: Dict[Literal["Common", "Odd", "IntradayOdd"], str] = {
+    "Common": "整股",
+    "Odd": "零股",
+    "IntradayOdd": "盤中零股",
+}
+STATUS_MESSAGES: Dict[Status, str] = {
+    Status.PendingSubmit: "傳送中",
+    Status.PreSubmitted: "預約單",
+    Status.Submitted: "傳送成功",
+    Status.Failed: "失敗",
+    Status.Cancelled: "已刪除",
+    Status.Filled: "完全成交",
+    Status.PartFilled: "部分成交",
+}
+QA_QUICK_REPLY = QuickReply(
+    [
+        QuickReplyItem(
+            action=PostbackAction(
+                label="⌨️ 打開鍵盤", data="ignore", input_option="openKeyboard"
+            )
+        ),
+        QuickReplyItem(action=PostbackAction(label="❌ 取消", data="cmd=cancel")),
+    ]
+)
 
 
 class Main(Cog):
