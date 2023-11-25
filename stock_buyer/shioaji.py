@@ -84,7 +84,8 @@ class Shioaji:
         price: float,
         quantity: int,
         action: Literal["Buy", "Sell"],
-    ) -> str:
+        order_lot: Literal["Common", "Odd", "IntradayOdd"],
+    ) -> Trade:
         """
         下單
 
@@ -95,7 +96,7 @@ class Shioaji:
             action (Literal["Buy", "Sell"]): 交易行為(買/賣)
 
         Returns:
-            str: 下單結果
+            Trade: 委託單
 
         Raises:
             RuntimeError: 尚未登入
@@ -108,10 +109,11 @@ class Shioaji:
             action=Action(action),
             price_type=StockPriceType.LMT,
             order_type=OrderType.ROD,
+            order_lot=StockOrderLot(order_lot),
             account=self.stock_account,
         )
         trade = await asyncio.to_thread(self.api.place_order, contract, order)
-        return STATUS_MESSAGES[trade.status.status]
+        return trade
 
     async def list_positions(self) -> List[Union[StockPosition, FuturePosition]]:
         """
