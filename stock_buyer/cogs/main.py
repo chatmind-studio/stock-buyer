@@ -142,3 +142,75 @@ class Main(Cog):
             return await ctx.reply_text("目前沒有庫存")
         template = CarouselTemplate(columns=columns)
         await ctx.reply_template("庫存", template=template)
+
+    @command
+    async def list_trades(self, ctx: Context, filled_only: bool) -> None:
+        user = await User.get_or_none(id=ctx.user_id)
+        if user is None:
+            return await ctx.reply_text("請先設定永豐金證卷帳戶")
+
+        async with user.shioaji as sj:
+            trades = await sj.list_trades()
+            columns: List[CarouselColumn] = []
+            for trade in trades:
+                if not isinstance(trade.order, StockOrder):
+                    log.warning("Unsupported order type: %s", type(trade.order))
+                    continue
+                if trade.order.order_lot.value in ("BlockTrade", "Fixing"):
+                    log.warning("Unsupported order lot: %s", trade.order.order_lot)
+                    continue
+                if filled_only and trade.status.status is not Status.Filled:
+                    continue
+                contract = await sj.get_contract(trade.contract.code)
+                if contract is None:
+                    raise AssertionError("Contract should not be None")
+
+                if trade.status.status is Status.Filled:
+                    actions = [
+                        PostbackAction(
+                            "加買",
+                            data=f"cmd=place_order&stock_id={trade.contract.code}&action=Buy",
+                        ),
+                        PostbackAction(
+                            "賣",
+                            data=f"cmd=place_order&stock_id={trade.contract.code}&action=Sell",
+                        ),
+                    ]
+                else:
+                    actions = [
+                        PostbackAction(
+                            "減量",
+                            data=f"cmd=update_order&trade_id={trade.order.id}&update_quantity=True",
+                        ),
+                        PostbackAction(
+                            "刪單",
+                            data=f"cmd=update_order&trade_id={trade.order.id}&update_quantity=True&quantity=0",
+                        ),
+                        PostbackAction(
+                            "改價",
+                            data=f"cmd=update_order&trade_id={trade.order.id}&update_quantity=False",
+                        ),
+                    ]
+
+                columns.append(
+                    CarouselColumn(
+                        text=(
+                            f"委託單 {trade.order.id}\n\n"
+                            f"股票: [{trade.contract.code}] {contract.name}\n"
+                            f"狀態: {STATUS_MESSAGES[trade.status.status]}\n"
+                            f"數量: {trade.order.quantity if trade.status.cancel_quantity == 0 else trade.status.cancel_quantity}\n"
+                            f"價格: NTD${trade.order.price if trade.status.modified_price == 0.0 else trade.status.modified_price}\n"
+                            f"交易行為: {ACTION_NAMES[trade.order.action.value]}\n"
+                            f"委託類型: {ORDER_LOT_NAMES[trade.order.order_lot.value]}\n"
+                        ),
+                        actions=actions,
+                    )
+                )
+
+        if not columns:
+            if filled_only:
+                return await ctx.reply_text("目前沒有成交單")
+            return await ctx.reply_text("目前沒有委託單")
+
+        template = CarouselTemplate(columns=columns)
+        await ctx.reply_template("委託單", template=template)
