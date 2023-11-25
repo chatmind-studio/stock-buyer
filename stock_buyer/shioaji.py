@@ -24,7 +24,7 @@ class Shioaji:
         self.__ca_path = ca_path
         self.__ca_passwd = ca_passwd
         self.__person_id = person_id
-        self.api = sj.Shioaji(simulation=True)
+        self.api = sj.Shioaji()
         self.stock_account: Optional[StockAccount] = None
 
     async def __aenter__(self) -> "Shioaji":
