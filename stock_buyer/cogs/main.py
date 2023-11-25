@@ -214,3 +214,65 @@ class Main(Cog):
 
         template = CarouselTemplate(columns=columns)
         await ctx.reply_template("委託單", template=template)
+
+    @command
+    async def update_order(
+        self,
+        ctx: Context,
+        trade_id: str,
+        update_quantity: bool,
+        quantity: Optional[int] = None,
+        price: Optional[float] = None,
+    ) -> None:
+        user = await User.get_or_none(id=ctx.user_id)
+        if user is None:
+            return await ctx.reply_text("請先設定永豐金證卷帳戶")
+
+        async with user.shioaji as sj:
+            trade = await sj.get_trade(trade_id)
+            if trade is None:
+                return await ctx.reply_text(f"找不到委託單 id 為 {trade_id} 的委託單")
+
+            if not isinstance(trade.order, StockOrder):
+                return await ctx.reply_text(
+                    f"Unsupported order type: {type(trade.order)}"
+                )
+            if trade.order.order_lot.value in ("BlockTrade", "Fixing"):
+                return await ctx.reply_text(
+                    f"Unsupported order lot: {trade.order.order_lot}"
+                )
+
+            if (
+                trade.order.order_lot in (StockOrderLot.IntradayOdd, StockOrderLot.Odd)
+                and not update_quantity
+            ):
+                return await ctx.reply_text("盤中零股/零股委託單無法改價")
+
+            if quantity is None and update_quantity:
+                user.temp_data = f"cmd=update_order&trade_id={trade_id}&quantity={{text}}&update_quantity=True"
+                await user.save()
+                return await ctx.reply_text(
+                    f"請輸入新的委託數量\n\n當前委託數量: {trade.order.quantity}",
+                    quick_reply=QA_QUICK_REPLY,
+                )
+            if price is None and not update_quantity:
+                user.temp_data = f"cmd=update_order&trade_id={trade_id}&quantity=0&price={{text}}&update_quantity=False"
+                await user.save()
+                return await ctx.reply_text(
+                    f"請輸入新的委託價格\n\n當前委託價格: NTD${trade.order.price}",
+                    quick_reply=QA_QUICK_REPLY,
+                )
+
+            if not update_quantity:
+                await sj.update_order(trade, price=price)
+                return await ctx.reply_text(
+                    f"✅ 委託單 {trade_id} 改價成功\n\n新價格: NTD${price}"
+                )
+
+            if quantity >= trade.order.quantity:
+                return await ctx.reply_text("新數量不能大於等於原委託數量 (只能減量)")
+            if quantity == 0:
+                await sj.cancel_order(trade)
+                return await ctx.reply_text(f"✅ 委託單 {trade_id} 刪單成功")
+            await sj.update_order(trade, quantity=quantity)
+            await ctx.reply_text(f"✅ 委託單 {trade_id} 減量成功\n\n新數量: {quantity}")
