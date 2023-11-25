@@ -3,19 +3,10 @@ from typing import Dict, List, Literal, Optional, Union
 
 import shioaji as sj
 from shioaji.account import StockAccount
-from shioaji.constant import Action, OrderType, Status, StockPriceType
+from shioaji.constant import Action, OrderType, StockOrderLot, StockPriceType
 from shioaji.contracts import Contract
+from shioaji.order import Trade
 from shioaji.position import FuturePosition, StockPosition
-
-STATUS_MESSAGES: Dict[Status, str] = {
-    Status.PendingSubmit: "傳送中",
-    Status.PreSubmitted: "預約單",
-    Status.Submitted: "傳送成功",
-    Status.Failed: "失敗",
-    Status.Cancelled: "已刪除",
-    Status.Filled: "完全成交",
-    Status.PartFilled: "部分成交",
-}
 
 
 class Shioaji:
@@ -33,7 +24,7 @@ class Shioaji:
         self.__ca_path = ca_path
         self.__ca_passwd = ca_passwd
         self.__person_id = person_id
-        self.api = sj.Shioaji()
+        self.api = sj.Shioaji(simulation=True)
         self.stock_account: Optional[StockAccount] = None
 
     async def __aenter__(self) -> "Shioaji":
