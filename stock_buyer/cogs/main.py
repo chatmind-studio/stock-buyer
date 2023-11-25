@@ -30,70 +30,115 @@ class Main(Cog):
         quantity: Optional[int] = None,
         price: Optional[float] = None,
         action: Optional[Literal["Buy", "Sell"]] = None,
+        order_lot: Optional[Literal["Common", "Odd", "IntradayOdd"]] = None,
         confirm: bool = False,
     ) -> None:
         user = await User.get_or_none(id=ctx.user_id)
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
 
-        if stock_id is None:
-            user.temp_data = f"cmd=place_order&stock_id={{text}}&quantity={quantity}&price={price}&action={action}"
-            await user.save()
-            return await ctx.reply_text("請輸入要下單的股票代號")
-        if quantity is None:
-            user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={{text}}&price={price}&action={action}"
-            await user.save()
-            return await ctx.reply_text("請輸入要下單的張數")
-        if price is None:
-            user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={{text}}&action={action}"
-            await user.save()
-            return await ctx.reply_text("請輸入要下單的價格")
-        if action is None:
-            user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={{text}}"
+        if order_lot is None:
+            user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={action}&order_lot={{text}}"
             await user.save()
             return await ctx.reply_template(
-                "請選擇要下單的交易行為",
-                template=ConfirmTemplate(
-                    text="請選擇要下單的交易行為",
+                "請選擇要交易類型",
+                template=ButtonsTemplate(
+                    text="請選擇交易類型",
                     actions=[
                         PostbackAction(
-                            label="買",
-                            data=f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action=Buy",
-                        ),
-                        PostbackAction(
-                            label="賣",
-                            data=f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action=Sell",
-                        ),
+                            label=v,
+                            data=f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={action}&order_lot={k}",
+                        )
+                        for k, v in ORDER_LOT_NAMES.items()
                     ],
                 ),
             )
-
-        if not confirm:
-            template = ConfirmTemplate(
-                text=f"確認下單?\n\n股票代號: {stock_id}\n張數: {quantity}\n價格: NTD${price}\n交易行為: {ACTION_NAMES[action]}",
-                actions=[
-                    PostbackAction(
-                        label="確定",
-                        data=f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={action}&confirm=True",
-                    ),
-                    PostbackAction(
-                        label="取消",
-                        data="cmd=cancel",
-                    ),
-                ],
+        if stock_id is None:
+            user.temp_data = f"cmd=place_order&stock_id={{text}}&quantity={quantity}&price={price}&action={action}&order_lot={order_lot}"
+            await user.save()
+            return await ctx.reply_text("請輸入要下單的股票代號", quick_reply=QA_QUICK_REPLY)
+        if price is None:
+            user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={{text}}&action={action}&order_lot={order_lot}"
+            await user.save()
+            async with user.shioaji as sj:
+                contract = await sj.get_contract(stock_id)
+                if contract is None:
+                    return await ctx.reply_text(f"找不到代號為 {stock_id} 的股票")
+            return await ctx.reply_text(
+                f"請輸入要下單的價格\n\n參考價: NTD${contract.reference}\n漲停價: NTD${contract.limit_up}\n跌停價: NTD${contract.limit_down}",
+                quick_reply=QA_QUICK_REPLY,
             )
-            return await ctx.reply_template("確認下單?", template=template)
+        if quantity is None:
+            user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={{text}}&price={price}&action={action}&order_lot={order_lot}"
+            await user.save()
+            async with user.shioaji as sj:
+                balance = await sj.get_account_balance()
+            return await ctx.reply_text(
+                f"請輸入要下單的數量\n\n目前下單的價格: NTD${price}\n目前交易類型: {ORDER_LOT_NAMES[order_lot]}\n當前帳戶餘額: NTD${balance}\n最多可買 {round(balance//price)} 股",
+                quick_reply=QA_QUICK_REPLY,
+            )
+        if action is None:
+            user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={{text}}&order_lot={order_lot}"
+            await user.save()
+            return await ctx.reply_template(
+                "請選擇交易行為",
+                template=ConfirmTemplate(
+                    text="請選擇交易行為",
+                    actions=[
+                        PostbackAction(
+                            label=v,
+                            data=f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={k}&order_lot={order_lot}",
+                        )
+                        for k, v in ACTION_NAMES.items()
+                    ],
+                ),
+            )
 
         async with user.shioaji as sj:
             contract = await sj.get_contract(stock_id)
             if contract is None:
                 return await ctx.reply_text(f"找不到代號為 {stock_id} 的股票")
+
+            order_str = (
+                f"股票: [{contract.code}] {contract.name}\n"
+                f"數量: {quantity}\n"
+                f"價格: NTD${price}\n"
+                f"交易行為: {ACTION_NAMES[action]}\n"
+                f"委託類型: {ORDER_LOT_NAMES[order_lot]}"
+            )
+            if not confirm:
+                template = ConfirmTemplate(
+                    text=f"確認下單?\n\n{order_str}",
+                    actions=[
+                        PostbackAction(
+                            label="確定",
+                            data=f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={action}&order_lot={order_lot}&confirm=True",
+                        ),
+                        PostbackAction(
+                            label="取消",
+                            data="cmd=cancel",
+                        ),
+                    ],
+                )
+                return await ctx.reply_template("確認下單?", template=template)
+
             result = await sj.place_order(
-                contract, price=price, quantity=quantity, action=action
+                contract,
+                price=price,
+                quantity=quantity,
+                action=action,
+                order_lot=order_lot,
             )
-            await ctx.reply_text(
-                f"✅ 下單成功\n\n股票代號: {stock_id}\n張數: {quantity}\n價格: NTD${price}\n交易行為: {ACTION_NAMES[action]}\n委託單狀態: {result}"
+            template = ButtonsTemplate(
+                text=f"✅ 下單成功\n\n{order_str}\n委託單 ID: {result.order.id}\n委託單狀態: {STATUS_MESSAGES[result.status.status]}",
+                actions=[
+                    PostbackAction(
+                        label="查詢委託狀態",
+                        data=f"cmd=list_trades&filled_only=False",
+                    ),
+                ],
             )
+            await ctx.reply_template("下單成功", template=template)
 
     @command
     async def cancel(self, ctx: Context) -> None:
