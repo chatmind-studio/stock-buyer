@@ -63,8 +63,8 @@ class Shioaji:
             person_id=self.__person_id,
         )
 
-    async def get_account_balance(self) -> float:
-        return (await asyncio.to_thread(self.api.account_balance)).acc_balance
+    async def get_account_balance(self) -> int:
+        return round((await asyncio.to_thread(self.api.account_balance)).acc_balance)
 
     async def get_contract(self, stock_id: str) -> Optional[Contract]:
         """
