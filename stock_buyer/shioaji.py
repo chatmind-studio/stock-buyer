@@ -128,3 +128,35 @@ class Shioaji:
         if self.stock_account is None:
             raise RuntimeError("尚未登入")
         return await asyncio.to_thread(self.api.list_positions, self.stock_account)
+
+    async def list_trades(self) -> List[Trade]:
+        """
+        列出所有成交紀錄
+
+        Returns:
+            List[Trade]: 成交紀錄
+
+        Raises:
+            RuntimeError: 尚未登入
+        """
+        if self.stock_account is None:
+            raise RuntimeError("尚未登入")
+
+        await asyncio.to_thread(self.api.update_status, self.stock_account)
+        return await asyncio.to_thread(self.api.list_trades)
+
+    async def get_trade(self, order_id: str) -> Optional[Trade]:
+        """
+        取得成交紀錄
+
+        Args:
+            order_id (str): 委託單編號
+
+        Returns:
+            Optional[Trade]: 成交紀錄
+        """
+        trades = await self.list_trades()
+        for trade in trades:
+            if trade.order.id == order_id:
+                return trade
+        return None
