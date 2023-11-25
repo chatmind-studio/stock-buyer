@@ -160,3 +160,37 @@ class Shioaji:
             if trade.order.id == order_id:
                 return trade
         return None
+
+    async def update_order(
+        self,
+        trade: Trade,
+        price: Optional[float] = None,
+        quantity: Optional[int] = None,
+    ) -> None:
+        """
+        更新委託單狀態
+
+        Args:
+            trade (Trade): 成交紀錄
+
+        Raises:
+            ValueError: price 和 quantity 不能同時為 None
+            ValueError: price 和 quantity 不能同時有值
+        """
+        if price is None and quantity is None:
+            raise ValueError("price 和 quantity 不能同時為 None")
+        if price is None and quantity is not None:
+            await asyncio.to_thread(self.api.update_order, trade, qty=quantity)
+        elif price is not None and quantity is None:
+            await asyncio.to_thread(self.api.update_order, trade, price=price)
+        else:
+            raise ValueError("price 和 quantity 不能同時有值")
+
+    async def cancel_order(self, trade: Trade) -> None:
+        """
+        刪除委託單
+
+        Args:
+            trade (Trade): 成交紀錄
+        """
+        await asyncio.to_thread(self.api.cancel_order, trade)
