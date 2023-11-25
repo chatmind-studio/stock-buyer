@@ -1,12 +1,18 @@
+import logging
 from typing import Dict, List, Literal, Optional
 
 from line import Cog, Context, command
 from line.models import (
+    ButtonsTemplate,
     CarouselColumn,
     CarouselTemplate,
     ConfirmTemplate,
     PostbackAction,
+    QuickReply,
+    QuickReplyItem,
 )
+from shioaji.constant import Status, StockOrderLot
+from shioaji.order import StockOrder
 
 from ..bot import StockBuyer
 from ..models import User
@@ -39,6 +45,8 @@ QA_QUICK_REPLY = QuickReply(
         QuickReplyItem(action=PostbackAction(label="❌ 取消", data="cmd=cancel")),
     ]
 )
+
+log = logging.getLogger(__name__)
 
 
 class Main(Cog):
@@ -166,10 +174,13 @@ class Main(Cog):
 
     @command
     async def cancel(self, ctx: Context) -> None:
+        user = await User.get(id=ctx.user_id)
+        user.temp_data = None
+        await user.save()
         await ctx.reply_text("已取消")
 
     @command
-    async def balance(self, ctx: Context) -> None:
+    async def get_balance(self, ctx: Context) -> None:
         user = await User.get_or_none(id=ctx.user_id)
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
@@ -179,7 +190,7 @@ class Main(Cog):
             await ctx.reply_text(f"帳戶餘額: NTD${balance}")
 
     @command
-    async def stock(self, ctx: Context) -> None:
+    async def list_positions(self, ctx: Context) -> None:
         user = await User.get_or_none(id=ctx.user_id)
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
@@ -193,7 +204,7 @@ class Main(Cog):
                     continue
                 columns.append(
                     CarouselColumn(
-                        text=f"[{position.code}] {contract.name}\n\n張數: {position.quantity}\n平均價格: NTD${position.price}\n目前股價: NTD${position.last_price}\n損益: NTD${position.pnl}",
+                        text=f"[{position.code}] {contract.name}\n\n數量: {position.quantity}\n平均價格: NTD${position.price}\n目前股價: NTD${position.last_price}\n損益: NTD${position.pnl}",
                         actions=[
                             PostbackAction(
                                 "買",
