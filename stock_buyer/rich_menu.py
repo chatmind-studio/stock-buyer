@@ -13,16 +13,28 @@ RICH_MENU = RichMenuRequest(
     chatBarText="打開/關閉導覽列",
     areas=[
         RichMenuArea(
-            bounds=RichMenuBounds(x=23, y=18, width=364, height=364),
-            action=PostbackAction(data="cmd=stock", label="庫存"),
+            bounds=RichMenuBounds(x=26, y=18, width=457, height=170),
+            action=PostbackAction(data="cmd=list_positions", label="庫存"),
         ),
         RichMenuArea(
-            bounds=RichMenuBounds(x=418, y=18, width=364, height=364),
-            action=PostbackAction(data="cmd=balance", label="帳戶餘額"),
+            bounds=RichMenuBounds(x=26, y=212, width=457, height=170),
+            action=PostbackAction(data="cmd=get_balance", label="帳戶餘額"),
         ),
         RichMenuArea(
-            bounds=RichMenuBounds(x=813, y=18, width=364, height=364),
+            bounds=RichMenuBounds(x=505, y=18, width=457, height=364),
             action=PostbackAction(data="cmd=place_order", label="下單"),
+        ),
+        RichMenuArea(
+            bounds=RichMenuBounds(x=984, y=18, width=190, height=170),
+            action=PostbackAction(
+                data="cmd=list_trades&filled_only=False", label="委託查詢"
+            ),
+        ),
+        RichMenuArea(
+            bounds=RichMenuBounds(x=984, y=212, width=190, height=170),
+            action=PostbackAction(
+                data="cmd=list_trades&filled_only=True", label="成交查詢"
+            ),
         ),
     ],
 )
