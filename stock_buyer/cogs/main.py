@@ -96,6 +96,14 @@ class Main(Cog):
             return await ctx.reply_text(
                 "請輸入要下單的股票代號或名稱", quick_reply=KEYBOARD_QUICK_REPLY
             )
+        if not stock_id.isdigit():
+            async with self.bot.session.get(
+                f"https://stock-api.seriaati.xyz/stocks?name={stock_id}"
+            ) as resp:
+                if resp.status != 200:
+                    return await ctx.reply_text(f"找不到名稱為 {stock_id} 的股票")
+                data: Dict[str, str] = await resp.json()
+                stock_id = data["id"]
         if price is None:
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={{text}}&action={action}&order_lot={order_lot}"
             await user.save()
