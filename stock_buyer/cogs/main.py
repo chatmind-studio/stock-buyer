@@ -35,14 +35,18 @@ STATUS_MESSAGES: Dict[Status, str] = {
     Status.Filled: "完全成交",
     Status.PartFilled: "部分成交",
 }
-QA_QUICK_REPLY = QuickReply(
+CANCEL_QUICK_REPLY_ITEM = QuickReplyItem(
+    action=PostbackAction(label="❌ 取消", data="cmd=cancel")
+)
+CANCEL_QUICK_RELPLY = QuickReply([CANCEL_QUICK_REPLY_ITEM])
+KEYBOARD_QUICK_REPLY = QuickReply(
     [
         QuickReplyItem(
             action=PostbackAction(
                 label="⌨️ 打開鍵盤", data="ignore", input_option="openKeyboard"
             )
         ),
-        QuickReplyItem(action=PostbackAction(label="❌ 取消", data="cmd=cancel")),
+        CANCEL_QUICK_REPLY_ITEM,
     ]
 )
 
@@ -84,11 +88,14 @@ class Main(Cog):
                         for k, v in ORDER_LOT_NAMES.items()
                     ],
                 ),
+                quick_reply=CANCEL_QUICK_RELPLY,
             )
         if stock_id is None:
             user.temp_data = f"cmd=place_order&stock_id={{text}}&quantity={quantity}&price={price}&action={action}&order_lot={order_lot}"
             await user.save()
-            return await ctx.reply_text("請輸入要下單的股票代號", quick_reply=QA_QUICK_REPLY)
+            return await ctx.reply_text(
+                "請輸入要下單的股票代號或名稱", quick_reply=KEYBOARD_QUICK_REPLY
+            )
         if price is None:
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={{text}}&action={action}&order_lot={order_lot}"
             await user.save()
@@ -98,7 +105,7 @@ class Main(Cog):
                     return await ctx.reply_text(f"找不到代號為 {stock_id} 的股票")
             return await ctx.reply_text(
                 f"請輸入要下單的價格\n\n參考價: NTD${contract.reference}\n漲停價: NTD${contract.limit_up}\n跌停價: NTD${contract.limit_down}",
-                quick_reply=QA_QUICK_REPLY,
+                quick_reply=KEYBOARD_QUICK_REPLY,
             )
         if quantity is None:
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={{text}}&price={price}&action={action}&order_lot={order_lot}"
@@ -107,7 +114,7 @@ class Main(Cog):
                 balance = await sj.get_account_balance()
             return await ctx.reply_text(
                 f"請輸入要下單的數量\n\n目前下單的價格: NTD${price}\n目前交易類型: {ORDER_LOT_NAMES[order_lot]}\n當前帳戶餘額: NTD${balance}\n最多可買 {round(balance//price)} 股",
-                quick_reply=QA_QUICK_REPLY,
+                quick_reply=KEYBOARD_QUICK_REPLY,
             )
         if action is None:
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={{text}}&order_lot={order_lot}"
@@ -124,9 +131,18 @@ class Main(Cog):
                         for k, v in ACTION_NAMES.items()
                     ],
                 ),
+                quick_reply=CANCEL_QUICK_RELPLY,
             )
 
         async with user.shioaji as sj:
+            if not stock_id.isdigit():
+                async with self.bot.session.get(
+                    f"https://stock-api.seriaati.xyz/stocks?name={stock_id}"
+                ) as resp:
+                    if resp.status != 200:
+                        return await ctx.reply_text(f"找不到名稱為 {stock_id} 的股票")
+                    data: Dict[str, str] = await resp.json()
+                    stock_id = data["id"]
             contract = await sj.get_contract(stock_id)
             if contract is None:
                 return await ctx.reply_text(f"找不到代號為 {stock_id} 的股票")
@@ -333,14 +349,14 @@ class Main(Cog):
                 await user.save()
                 return await ctx.reply_text(
                     f"請輸入新的委託數量\n\n當前委託數量: {trade.order.quantity}",
-                    quick_reply=QA_QUICK_REPLY,
+                    quick_reply=KEYBOARD_QUICK_REPLY,
                 )
             if price is None and not update_quantity:
                 user.temp_data = f"cmd=update_order&trade_id={trade_id}&quantity=0&price={{text}}&update_quantity=False"
                 await user.save()
                 return await ctx.reply_text(
                     f"請輸入新的委託價格\n\n當前委託價格: NTD${trade.order.price}",
-                    quick_reply=QA_QUICK_REPLY,
+                    quick_reply=KEYBOARD_QUICK_REPLY,
                 )
 
             if not update_quantity:
