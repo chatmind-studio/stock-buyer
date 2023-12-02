@@ -112,8 +112,8 @@ class Main(Cog):
             ) as resp:
                 if resp.status != 200:
                     return await ctx.reply_text(f"找不到名稱為 {stock_id} 的股票")
-                data: Dict[str, str] = await resp.json()
-                close_price = data["close_price"]
+                history_trades: List[Dict[str, str]] = await resp.json()
+                close_price = history_trades[0]["close_price"]
             return await ctx.reply_text(
                 f"請輸入要下單的價格\n\n收盤價: NTD${close_price}",
                 quick_reply=KEYBOARD_QUICK_REPLY,
