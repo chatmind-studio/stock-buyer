@@ -107,12 +107,15 @@ class Main(Cog):
         if price is None:
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={{text}}&action={action}&order_lot={order_lot}"
             await user.save()
-            async with user.shioaji as sj:
-                contract = await sj.get_contract(stock_id)
-                if contract is None:
-                    return await ctx.reply_text(f"找不到代號為 {stock_id} 的股票")
+            async with self.bot.session.get(
+                f"https://stock-api.seriaati.xyz/history_trades/{stock_id}?limit=1"
+            ) as resp:
+                if resp.status != 200:
+                    return await ctx.reply_text(f"找不到名稱為 {stock_id} 的股票")
+                data: Dict[str, str] = await resp.json()
+                close_price = data["close_price"]
             return await ctx.reply_text(
-                f"請輸入要下單的價格\n\n參考價: NTD${contract.reference}\n漲停價: NTD${contract.limit_up}\n跌停價: NTD${contract.limit_down}",
+                f"請輸入要下單的價格\n\n收盤價: NTD${close_price}",
                 quick_reply=KEYBOARD_QUICK_REPLY,
             )
         if quantity is None:
