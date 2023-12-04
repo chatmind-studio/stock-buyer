@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, List, Literal, Optional, Union
+from typing import List, Literal, Optional, Union
 
 import shioaji as sj
 from shioaji.account import StockAccount
@@ -28,15 +28,18 @@ class Shioaji:
         self.stock_account: Optional[StockAccount] = None
 
     async def __aenter__(self) -> "Shioaji":
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.logout()
+
+    async def start(self) -> None:
         await self.login()
         await self.activate_ca()
         if not isinstance(self.api.stock_account, StockAccount):
             raise RuntimeError("無法取得股票帳號")
         self.stock_account = self.api.stock_account
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb) -> None:
-        await self.logout()
 
     async def login(self, **kwargs) -> None:
         await asyncio.to_thread(
