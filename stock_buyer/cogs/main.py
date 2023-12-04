@@ -193,7 +193,7 @@ class Main(Cog):
                 actions=[
                     PostbackAction(
                         label="查詢委託狀態",
-                        data=f"cmd=list_trades&filled_only=False",
+                        data="cmd=list_trades&filled_only=False",
                     ),
                 ],
             )
