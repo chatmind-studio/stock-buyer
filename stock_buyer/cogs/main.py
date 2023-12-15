@@ -72,7 +72,6 @@ class Main(Cog):
         user = await User.get_or_none(id=ctx.user_id)
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
-        sj = self.bot.shioaji_accounts[user.id]
 
         if order_lot is None:
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={action}&order_lot={{text}}"
@@ -91,48 +90,43 @@ class Main(Cog):
                 ),
                 quick_reply=CANCEL_QUICK_RELPLY,
             )
+
         if stock_id is None:
             user.temp_data = f"cmd=place_order&stock_id={{text}}&quantity={quantity}&price={price}&action={action}&order_lot={order_lot}"
             await user.save()
             return await ctx.reply_text(
                 "請輸入要下單的股票代號或名稱", quick_reply=KEYBOARD_QUICK_REPLY
             )
-        if not stock_id.isdigit():
-            async with self.bot.session.get(
-                f"https://stock-api.seriaati.xyz/stocks?name={stock_id}"
-            ) as resp:
-                if resp.status != 200:
-                    return await ctx.reply_text(f"找不到名稱為 {stock_id} 的股票")
-                data: Dict[str, str] = await resp.json()
-                stock_id = data["id"]
+
+        stock = await self.bot.crawl.fetch_stock(stock_id)
+        if stock is None:
+            return await ctx.reply_text(f"找不到代號或名稱為 {stock_id} 的股票")
+
         if price is None:
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={{text}}&action={action}&order_lot={order_lot}"
             await user.save()
-            async with self.bot.session.get(
-                f"https://stock-api.seriaati.xyz/history_trades/{stock_id}?limit=1"
-            ) as resp:
-                if resp.status != 200:
-                    return await ctx.reply_text(f"找不到名稱為 {stock_id} 的股票")
-                history_trades: List[Dict[str, str]] = await resp.json()
-                close_price = history_trades[0]["close_price"]
+            close_price = await self.bot.crawl.fetch_stock_last_close_price(stock.id)
             return await ctx.reply_text(
                 f"請輸入要下單的價格\n\n收盤價: NTD${close_price}",
                 quick_reply=KEYBOARD_QUICK_REPLY,
             )
+
         if quantity is None:
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={{text}}&price={price}&action={action}&order_lot={order_lot}"
             await user.save()
 
-            balance = await sj.get_account_balance()
+            async with user.shioaji as sj:
+                balance = await sj.get_account_balance()
             return await ctx.reply_text(
                 f"請輸入要下單的數量\n\n目前下單的價格: NTD${price}\n目前交易類型: {ORDER_LOT_NAMES[order_lot]}\n當前帳戶餘額: NTD${balance}\n最多可買 {round(balance//price)} 股",
                 quick_reply=KEYBOARD_QUICK_REPLY,
             )
+
         if action is None:
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={{text}}&order_lot={order_lot}"
             await user.save()
             return await ctx.reply_template(
-                "請選擇交易行為",
+                "請選擇交易行為\n查找商品檔需要時間, 按下按鈕後請稍等",
                 template=ConfirmTemplate(
                     text="請選擇交易行為",
                     actions=[
@@ -146,18 +140,10 @@ class Main(Cog):
                 quick_reply=CANCEL_QUICK_RELPLY,
             )
 
-        if not stock_id.isdigit():
-            async with self.bot.session.get(
-                f"https://stock-api.seriaati.xyz/stocks?name={stock_id}"
-            ) as resp:
-                if resp.status != 200:
-                    return await ctx.reply_text(f"找不到名稱為 {stock_id} 的股票")
-                data: Dict[str, str] = await resp.json()
-                stock_id = data["id"]
-
-        contract = await sj.get_contract(stock_id)
+        async with user.shioaji as sj:
+            contract = await sj.get_contract(stock.id)
         if contract is None:
-            return await ctx.reply_text(f"找不到代號為 {stock_id} 的股票")
+            return await ctx.reply_text(f"找不到代號或名稱為 {stock_id} 的股票")
 
         order_str = (
             f"股票: [{contract.code}] {contract.name}\n"
@@ -213,8 +199,8 @@ class Main(Cog):
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
 
-        sj = self.bot.shioaji_accounts[user.id]
-        balance = await sj.get_account_balance()
+        async with user.shioaji as sj:
+            balance = await sj.get_account_balance()
         await ctx.reply_text(f"帳戶餘額: NTD${balance}")
 
     @command
@@ -223,8 +209,9 @@ class Main(Cog):
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
 
-        sj = self.bot.shioaji_accounts[user.id]
-        positions = await sj.list_positions()
+        async with user.shioaji as sj:
+            positions = await sj.list_positions()
+
         columns: List[CarouselColumn] = []
         for position in positions:
             contract = await sj.get_contract(position.code)
@@ -257,8 +244,9 @@ class Main(Cog):
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
 
-        sj = self.bot.shioaji_accounts[user.id]
-        trades = await sj.list_trades()
+        async with user.shioaji as sj:
+            trades = await sj.list_trades()
+
         columns: List[CarouselColumn] = []
         for trade in trades:
             if not isinstance(trade.order, StockOrder):
@@ -336,8 +324,8 @@ class Main(Cog):
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
 
-        sj = self.bot.shioaji_accounts[user.id]
-        trade = await sj.get_trade(trade_id)
+        async with user.shioaji as sj:
+            trade = await sj.get_trade(trade_id)
         if trade is None:
             return await ctx.reply_text(f"找不到委託單 id 為 {trade_id} 的委託單")
 

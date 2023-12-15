@@ -41,9 +41,9 @@ class Shioaji:
             raise RuntimeError("無法取得股票帳號")
         self.stock_account = self.api.stock_account
 
-    async def login(self, **kwargs) -> None:
+    async def login(self) -> None:
         await asyncio.to_thread(
-            self.api.login, self.__api_key, self.__secret_key, **kwargs
+            self.api.login, self.__api_key, self.__secret_key, fetch_contract=False
         )
 
     async def logout(self) -> None:
@@ -70,6 +70,7 @@ class Shioaji:
         Returns:
             Optional[Contract]: 商品檔
         """
+        await asyncio.to_thread(self.api.fetch_contracts, contract_download=True)
         return await asyncio.to_thread(self.api.Contracts.Stocks.__getitem__, stock_id)
 
     async def place_order(
