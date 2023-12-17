@@ -5,8 +5,21 @@ import shioaji as sj
 from shioaji.account import StockAccount
 from shioaji.constant import Action, OrderType, StockOrderLot, StockPriceType
 from shioaji.contracts import Contract
+from shioaji.error import TokenError
 from shioaji.order import Trade
 from shioaji.position import FuturePosition, StockPosition
+
+
+def handle_token_error(func):
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except TokenError:
+            await args[0].logout()
+            await args[0].login()
+            return await func(*args, **kwargs)
+
+    return wrapper
 
 
 class Shioaji:
@@ -42,9 +55,7 @@ class Shioaji:
         self.stock_account = self.api.stock_account
 
     async def login(self) -> None:
-        await asyncio.to_thread(
-            self.api.login, self.__api_key, self.__secret_key, fetch_contract=False
-        )
+        await asyncio.to_thread(self.api.login, self.__api_key, self.__secret_key)
 
     async def logout(self) -> None:
         await asyncio.to_thread(self.api.logout)
@@ -57,9 +68,11 @@ class Shioaji:
             person_id=self.__person_id,
         )
 
+    @handle_token_error
     async def get_account_balance(self) -> int:
         return round((await asyncio.to_thread(self.api.account_balance)).acc_balance)
 
+    @handle_token_error
     async def get_contract(self, stock_id: str) -> Optional[Contract]:
         """
         取得商品檔
@@ -70,9 +83,9 @@ class Shioaji:
         Returns:
             Optional[Contract]: 商品檔
         """
-        await asyncio.to_thread(self.api.fetch_contracts, contract_download=True)
         return await asyncio.to_thread(self.api.Contracts.Stocks.__getitem__, stock_id)
 
+    @handle_token_error
     async def place_order(
         self,
         contract: Contract,
@@ -110,6 +123,7 @@ class Shioaji:
         trade = await asyncio.to_thread(self.api.place_order, contract, order)
         return trade
 
+    @handle_token_error
     async def list_positions(self) -> List[Union[StockPosition, FuturePosition]]:
         """
         列出所有未實現損益
@@ -124,6 +138,7 @@ class Shioaji:
             raise RuntimeError("尚未登入")
         return await asyncio.to_thread(self.api.list_positions, self.stock_account)
 
+    @handle_token_error
     async def list_trades(self) -> List[Trade]:
         """
         列出所有成交紀錄
@@ -140,6 +155,7 @@ class Shioaji:
         await asyncio.to_thread(self.api.update_status, self.stock_account)
         return await asyncio.to_thread(self.api.list_trades)
 
+    @handle_token_error
     async def get_trade(self, order_id: str) -> Optional[Trade]:
         """
         取得成交紀錄
@@ -156,6 +172,7 @@ class Shioaji:
                 return trade
         return None
 
+    @handle_token_error
     async def update_order(
         self,
         trade: Trade,
@@ -181,6 +198,7 @@ class Shioaji:
         else:
             raise ValueError("price 和 quantity 不能同時有值")
 
+    @handle_token_error
     async def cancel_order(self, trade: Trade) -> None:
         """
         刪除委託單

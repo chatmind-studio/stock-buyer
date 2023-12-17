@@ -9,6 +9,7 @@ from tortoise import Tortoise
 
 from .models import User
 from .rich_menu import RICH_MENU
+from .shioaji import Shioaji
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class StockBuyer(Bot):
     def __init__(self, *, channel_secret: str, access_token: str) -> None:
         super().__init__(channel_secret=channel_secret, access_token=access_token)
         self.crawl = StockCrawl()
+        self.shioaji_accs: dict[str, Shioaji] = {}
 
     async def setup_hook(self) -> None:
         log.info("Setting up database...")
@@ -36,6 +38,13 @@ class StockBuyer(Bot):
         rich_menu_id = await self.create_rich_menu(RICH_MENU, "assets/rich_menu.png")
         await self.line_bot_api.set_default_rich_menu(rich_menu_id)
 
+        log.info("Setting up shioaji accounts")
+        users = await User.all()
+        for user in users:
+            shioaji = user.shioaji
+            await shioaji.start()
+            self.shioaji_accs[user.id] = shioaji
+
     async def on_message(self, event: MessageEvent) -> None:
         if event.message is None:
             return
@@ -51,3 +60,5 @@ class StockBuyer(Bot):
     async def on_close(self) -> None:
         await Tortoise.close_connections()
         await self.crawl.close()
+        for shioaji in self.shioaji_accs.values():
+            await shioaji.logout()

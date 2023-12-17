@@ -72,6 +72,7 @@ class Main(Cog):
         user = await User.get_or_none(id=ctx.user_id)
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
+        sj = self.bot.shioaji_accs[user.id]
 
         if order_lot is None:
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={quantity}&price={price}&action={action}&order_lot={{text}}"
@@ -115,8 +116,7 @@ class Main(Cog):
             user.temp_data = f"cmd=place_order&stock_id={stock_id}&quantity={{text}}&price={price}&action={action}&order_lot={order_lot}"
             await user.save()
 
-            async with user.shioaji as sj:
-                balance = await sj.get_account_balance()
+            balance = await sj.get_account_balance()
             return await ctx.reply_text(
                 f"請輸入要下單的數量\n\n目前下單的價格: NTD${price}\n目前交易類型: {ORDER_LOT_NAMES[order_lot]}\n當前帳戶餘額: NTD${balance}\n最多可買 {round(balance//price)} 股",
                 quick_reply=KEYBOARD_QUICK_REPLY,
@@ -140,8 +140,7 @@ class Main(Cog):
                 quick_reply=CANCEL_QUICK_RELPLY,
             )
 
-        async with user.shioaji as sj:
-            contract = await sj.get_contract(stock.id)
+        contract = await sj.get_contract(stock.id)
         if contract is None:
             return await ctx.reply_text(f"找不到代號或名稱為 {stock_id} 的股票")
 
@@ -199,8 +198,8 @@ class Main(Cog):
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
 
-        async with user.shioaji as sj:
-            balance = await sj.get_account_balance()
+        sj = self.bot.shioaji_accs[user.id]
+        balance = await sj.get_account_balance()
         await ctx.reply_text(f"帳戶餘額: NTD${balance}")
 
     @command
@@ -209,8 +208,8 @@ class Main(Cog):
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
 
-        async with user.shioaji as sj:
-            positions = await sj.list_positions()
+        sj = self.bot.shioaji_accs[user.id]
+        positions = await sj.list_positions()
 
         columns: List[CarouselColumn] = []
         for position in positions:
@@ -244,8 +243,8 @@ class Main(Cog):
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
 
-        async with user.shioaji as sj:
-            trades = await sj.list_trades()
+        sj = self.bot.shioaji_accs[user.id]
+        trades = await sj.list_trades()
 
         columns: List[CarouselColumn] = []
         for trade in trades:
@@ -324,8 +323,8 @@ class Main(Cog):
         if user is None:
             return await ctx.reply_text("請先設定永豐金證卷帳戶")
 
-        async with user.shioaji as sj:
-            trade = await sj.get_trade(trade_id)
+        sj = self.bot.shioaji_accs[user.id]
+        trade = await sj.get_trade(trade_id)
         if trade is None:
             return await ctx.reply_text(f"找不到委託單 id 為 {trade_id} 的委託單")
 
